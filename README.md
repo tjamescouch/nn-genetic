@@ -22,8 +22,7 @@ pip install torch torchvision
 python main.py
 ```
 
-The script prints the best accuracy and basic model stats each generation.  A
-single run on an Apple M‑series CPU/GPU finishes in a couple of minutes.
+The script prints the best accuracy and basic model stats each generation.
 
 ---
 
