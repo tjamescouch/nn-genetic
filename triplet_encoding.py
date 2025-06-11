@@ -58,9 +58,8 @@ def mutate(genome: bytes, p: float = 0.02) -> bytes:
 
 # ---------- decoding ----------
 def genome_to_net(genome: bytes) -> nn.Module:
-    """Decode a triplet-codon genome into a torch.nn.Sequential network."""
+    """Decode variable-param triplet genome → torch.nn.Sequential network."""
     def last_linear_out() -> int:
-        """Return out_features of the most-recent Linear (or INPUT_SIZE if none)."""
         for layer in reversed(layers):
             if isinstance(layer, nn.Linear):
                 return layer.out_features
@@ -80,45 +79,48 @@ def genome_to_net(genome: bytes) -> nn.Module:
         if codon == STOP_CODON:
             break
 
-        top_byte = (codon & 0xFF0000) >> 16
+        top    = (codon & 0xFF0000) >> 16
+        middle = (codon & 0x00FF00) >> 8
 
-        # -------- opcode actions --------
-        if   top_byte == 0x01:            # +32
-            pending_h += 32
+        # ── opcode actions ───────────────────────────────────────────────
+        if   top == 0x01:   # +32 × scale
+            delta = int(32 * (1 + middle / 255))
+            pending_h += delta
 
-        elif top_byte == 0x05:            # +128
-            pending_h += 128
+        elif top == 0x05:   # +128 × scale
+            delta = int(128 * (1 + middle / 255))
+            pending_h += delta
 
-        elif top_byte == 0x08:            # +256
-            pending_h += 256
+        elif top == 0x08:   # +256 × scale
+            delta = int(256 * (1 + middle / 255))
+            pending_h += delta
 
-        elif top_byte == 0x02:            # commit Dense→ReLU
+        elif top == 0x02:   # commit Dense→ReLU
             if pending_h:
                 in_f = last_linear_out()
                 layers += [nn.Linear(in_f, pending_h), nn.ReLU()]
                 pending_h = 0
 
-        elif top_byte == 0x03:            # duplicate prev Dense→ReLU
-            # find last Linear layer
+        elif top == 0x03:   # duplicate previous block (width-safe)
             for idx in range(len(layers) - 1, -1, -1):
                 if isinstance(layers[idx], nn.Linear):
-                    lin = layers[idx]
-                    layers += [nn.Linear(lin.in_features, lin.out_features),
-                               nn.ReLU()]
+                    w = layers[idx].out_features
+                    layers += [nn.Linear(w, w), nn.ReLU()]
                     break
 
-        elif top_byte == 0x04:   # dropout with encoded p
+        elif top == 0x04:   # Dropout(p)
             p = max(0.05, min(0.5, middle / 255))
             layers.append(nn.Dropout(p))
 
-        elif top_byte == 0x14:            # Dropout 0.25
-            layers.append(nn.Dropout(0.25))
+        elif top == 0x06:   # BatchNorm1d(momentum)
+            momentum = 0.05 + 0.45 * (middle / 255)
+            layers.append(nn.BatchNorm1d(last_linear_out(), momentum=momentum))
 
-        elif top_byte == 0x06:            # BatchNorm1d
-            layers.append(nn.BatchNorm1d(last_linear_out()))
-
-        elif top_byte == 0x07:            # Tanh
-            layers.append(nn.Tanh())
+        elif top == 0x07:   # scaled Tanh
+            gain = 0.5 + middle / 255
+            layers.append(nn.Tanh())            # standard Tanh
+            if abs(gain - 1.0) > 1e-3:          # add scaling layer if needed
+                layers.append(nn.Lambda(lambda x, g=gain: g * x))
 
     # flush any remaining hidden units
     if pending_h:
@@ -127,6 +129,7 @@ def genome_to_net(genome: bytes) -> nn.Module:
     # final classifier
     layers.append(nn.Linear(last_linear_out(), OUTPUT_CLASSES))
     return nn.Sequential(*layers)
+
 
 
 # ---------- tiny smoke test ----------
