@@ -18,10 +18,8 @@ language models across low‑bandwidth peer‑to‑peer networks**.
 ```bash
 # clone & set up
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt  # torch + torchvision only
-
-# run one GA session
-python main.py       # defaults: POP=30, GEN=10, 1 epoch per genome
+pip install torch torchvision
+python main.py
 ```
 
 The script prints the best accuracy and basic model stats each generation.  A
