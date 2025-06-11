@@ -1,28 +1,28 @@
 # triplet_encoding.py
 """
-Triplet-codon genome ⇨ PyTorch phenotype
-=======================================
+Triplet-codon genome  →  PyTorch phenotype
+-----------------------------------------
 
-* Each codon = 3 bytes (24 bits) read MSB→LSB.
-* START  = 0xAAAAAA   - begins decoding
-* STOP   = 0xFFFFFF   - terminates decoding
-* Top    = high-order byte  (first of three)
-* Middle = second byte
-* Low    = third byte  (neutral drift, ignored)
+• 1 codon = 3 bytes (24 b, MSB→LSB)  
+• START = 0xAAAAAA  |  STOP = 0xFFFFFF  
+• top-byte  = opcode  
+• middle-byte = per-opcode parameter (0–255, clipped if unused)  
+• low-byte = neutral drift / synonym padding
 
-Opcode table
-------------
-Top byte   Meaning                     Synonyms (middle byte)       Effect
-0x01       add +32 hidden units        0x00-0xFF                    accumulate
-0x05       add +128 hidden units       0x00-0xFF                    accumulate
-0x08       add +256 hidden units       0x00-0xFF                    accumulate
-0x02       commit Dense→ReLU block     0x00-0xFF                    flush
-0x03       duplicate previous block    0x00-0xFF                    copy
-0x04       Dropout(p=0.10)             0x00-0x7F                    layer
-0x14       Dropout(p=0.25)             0x80-0xFF                    layer
-0x06       BatchNorm1d                 0x00-0xFF                    layer
-0x07       Tanh activation             0x00-0xFF                    layer
+Opcode summary
+──────────────
+top  | action                                      | middle-byte meaning
+─────|---------------------------------------------|-------------------------------
+0x01 | add hidden units  +32 × (1 + m/255)         | fine-grained width step
+0x05 | add hidden units  +128                      | synonyms m=0–255
+0x08 | add hidden units  +256                      | synonyms m=0–255
+0x02 | commit Dense → ReLU block                   | flush pending units
+0x03 | duplicate previous Dense → Act (width-safe) | —
+0x04 | Dropout(p = 0.05 + m/510) ∈ [0.05, 0.55]    | dropout rate
+0x06 | BatchNorm1d  (mom = 0.05 + m/510)           | momentum
+0x07 | Tanh activation (gain = 0.5 + m/255)        | optional α scaling
 """
+
 from __future__ import annotations
 import random, torch, torch.nn as nn
 from typing import List
@@ -107,8 +107,9 @@ def genome_to_net(genome: bytes) -> nn.Module:
                                nn.ReLU()]
                     break
 
-        elif top_byte == 0x04:            # Dropout 0.10
-            layers.append(nn.Dropout(0.10))
+        elif top_byte == 0x04:   # dropout with encoded p
+            p = max(0.05, min(0.5, middle / 255))
+            layers.append(nn.Dropout(p))
 
         elif top_byte == 0x14:            # Dropout 0.25
             layers.append(nn.Dropout(0.25))
