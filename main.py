@@ -66,7 +66,6 @@ def reproduce(population, scores, mutation_p, crossover_rate=0.3):
         parent_a = tournament_select(population, scores)
         parent_b = tournament_select(population, scores)
         child = crossover(parent_a, parent_b)
-        print("parent_a len:", len(parent_a), "parent_b len:", len(parent_b), "child len:", len(child))
     else:
         parent = tournament_select(population, scores)
         child  = parent

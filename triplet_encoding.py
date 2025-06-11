@@ -15,7 +15,7 @@ Opcode table
 Top byte   Meaning                     Synonyms (middle byte)       Effect
 0x01       add +32 hidden units        0x00-0xFF                    accumulate
 0x05       add +128 hidden units       0x00-0xFF                    accumulate
-0x08       add +256 hidden units       0x00-0xFF                    layer
+0x08       add +256 hidden units       0x00-0xFF                    accumulate
 0x02       commit Dense→ReLU block     0x00-0xFF                    flush
 0x03       duplicate previous block    0x00-0xFF                    copy
 0x04       Dropout(p=0.10)             0x00-0x7F                    layer
