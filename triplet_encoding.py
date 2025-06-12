@@ -130,7 +130,12 @@ def genome_to_net(genome: bytes) -> nn.Module:
     layers.append(nn.Linear(last_linear_out(), OUTPUT_CLASSES))
     return nn.Sequential(*layers)
 
-
+def crossover(mum: bytes, dad: bytes) -> bytes:
+    max_cut = min(len(mum), len(dad)) // CODON_LEN - 1  # keep STOP codon
+    if max_cut <= 1:
+        return mum  # genomes too short
+    cut = random.randrange(1, max_cut) * CODON_LEN
+    return mum[:cut] + dad[cut:]
 
 # ---------- tiny smoke test ----------
 if __name__ == "__main__":
